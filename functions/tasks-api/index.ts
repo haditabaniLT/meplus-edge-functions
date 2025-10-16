@@ -9,6 +9,19 @@ import { getTaskById } from "./handlers/getTaskById.ts";
 import { updateTask } from "./handlers/updateTask.ts";
 import { deleteTask } from "./handlers/deleteTask.ts";
 import { getUsage } from "./handlers/getUsage.ts";
+import { 
+  createTemplate, 
+  getTemplates, 
+  getTemplateById, 
+  updateTemplate, 
+  deleteTemplate 
+} from "./handlers/templates.ts";
+import { 
+  shareTask, 
+  unshareTask, 
+  exportTask, 
+  exportTasks 
+} from "./handlers/taskSharing.ts";
 
 // Helper function to add CORS headers to responses
 const addCorsHeaders = (response: Response): Response => {
@@ -82,9 +95,9 @@ Deno.serve(async (req) => {
             contentType: req.headers.get("Content-Type"),
           },
           environment: {
-            hasSupabaseUrl: !!Deno.env.get("SUPABASE_URL"),
-            hasSupabaseAnonKey: !!Deno.env.get("SUPABASE_ANON_KEY"),
-            hasSupabaseServiceKey: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+            hasSupabaseUrl: !!(globalThis as any).Deno?.env?.get("SUPABASE_URL"),
+            hasSupabaseAnonKey: !!(globalThis as any).Deno?.env?.get("SUPABASE_ANON_KEY"),
+            hasSupabaseServiceKey: !!(globalThis as any).Deno?.env?.get("SUPABASE_SERVICE_ROLE_KEY"),
           }
         }),
         {
@@ -107,6 +120,15 @@ Deno.serve(async (req) => {
       return addCorsHeaders(await getUsage(req, user));
     }
 
+    // Templates routes
+    if (pathname === "/tasks-api/templates" && method === "POST") {
+      return addCorsHeaders(await createTemplate(req, user));
+    }
+
+    if (pathname === "/tasks-api/templates" && method === "GET") {
+      return addCorsHeaders(await getTemplates(req, user));
+    }
+
     // Handle dynamic routes for individual tasks
     const taskIdMatch = pathname.match(/^\/tasks-api\/tasks\/([^\/]+)$/);
     if (taskIdMatch) {
@@ -125,6 +147,50 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Handle task sharing routes
+    const taskShareMatch = pathname.match(/^\/tasks-api\/tasks\/([^\/]+)\/share$/);
+    if (taskShareMatch) {
+      const taskId = taskShareMatch[1];
+      if (method === "POST") {
+        return addCorsHeaders(await shareTask(req, user, taskId));
+      }
+      if (method === "DELETE") {
+        return addCorsHeaders(await unshareTask(req, user, taskId));
+      }
+    }
+
+    // Handle task export routes
+    const taskExportMatch = pathname.match(/^\/tasks-api\/tasks\/([^\/]+)\/export$/);
+    if (taskExportMatch) {
+      const taskId = taskExportMatch[1];
+      if (method === "GET") {
+        return addCorsHeaders(await exportTask(req, user, taskId));
+      }
+    }
+
+    // Handle bulk export route
+    if (pathname === "/tasks-api/tasks/export" && method === "GET") {
+      return addCorsHeaders(await exportTasks(req, user));
+    }
+
+    // Handle dynamic routes for individual templates
+    const templateIdMatch = pathname.match(/^\/tasks-api\/templates\/([^\/]+)$/);
+    if (templateIdMatch) {
+      const templateId = templateIdMatch[1];
+
+      if (method === "GET") {
+        return addCorsHeaders(await getTemplateById(req, user, templateId));
+      }
+
+      if (method === "PUT") {
+        return addCorsHeaders(await updateTemplate(req, user, templateId));
+      }
+
+      if (method === "DELETE") {
+        return addCorsHeaders(await deleteTemplate(req, user, templateId));
+      }
+    }
+
     // Route not found
     return addCorsHeaders(createErrorResponse(`Route ${pathname} not found`, 404));
 
@@ -137,28 +203,63 @@ Deno.serve(async (req) => {
 /* 
 API Endpoints:
 
+TASKS:
 POST /tasks
 - Create a new task
 - Body: { category, title, content, priority?, due_date?, tags? }
 
 GET /tasks
 - Fetch all tasks for authenticated user
-- Query params: category?, status?, limit?, offset?
+- Query params: category?, status?, search?, fromDate?, toDate?, priority?, isFavorite?, sortBy?, sortOrder?, limit?, offset?
 
 GET /tasks/:id
 - Fetch a single task by ID
 
 PUT /tasks/:id
 - Update an existing task
-- Body: { title?, content?, category?, status?, priority?, due_date?, tags?, favorite? }
+- Body: { title?, content?, category?, status?, priority?, due_date?, tags?, is_favorite? }
 
 DELETE /tasks/:id
 - Delete a task
 
+POST /tasks/:id/share
+- Share a task (generates public link)
+
+DELETE /tasks/:id/share
+- Unshare a task
+
+GET /tasks/:id/export
+- Export a single task as JSON
+
+GET /tasks/export
+- Export multiple tasks as JSON
+- Query params: taskIds?, category?, status?
+
+TEMPLATES:
+POST /templates
+- Create a new template
+- Body: { title, category, content, tags?, is_public?, is_favorite? }
+
+GET /templates
+- Fetch templates (user's own + public)
+- Query params: category?, isPublic?, isFavorite?, search?, sortBy?, sortOrder?, limit?, offset?
+
+GET /templates/:id
+- Fetch a single template by ID
+
+PUT /templates/:id
+- Update an existing template
+- Body: { title?, category?, content?, tags?, is_public?, is_favorite? }
+
+DELETE /templates/:id
+- Delete a template
+
+USAGE:
 GET /usage
 - Get user's current usage and plan limits
 - Returns: { plan, usage: { tasks_generated, export_count }, limits: { tasks_generated, export_limit } }
 
 All endpoints require Authorization header with Bearer token.
 Rate limit: 100 requests per minute per IP.
+Plan limits enforced: BASE (10 tasks, 2 exports), PRO (unlimited).
 */

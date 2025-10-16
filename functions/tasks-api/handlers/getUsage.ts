@@ -8,8 +8,8 @@ export interface UsageData {
     export_count: number;
   };
   limits: {
-    tasks_generated: number;
-    export_limit: number;
+    tasks_generated: number | null;
+    export_limit: number | null;
   };
 }
 
@@ -17,10 +17,10 @@ export const getUsage = async (req: Request, user: AuthenticatedUser) => {
   try {
     const supabase = createSupabaseClient();
     
-    // Get user's plan from users table
+    // Get user's plan and usage from users table
     const { data: userData, error: userError } = await supabase
       .from("users")
-      .select("plan")
+      .select("plan, usage")
       .eq("id", user.id)
       .single();
 
@@ -29,11 +29,12 @@ export const getUsage = async (req: Request, user: AuthenticatedUser) => {
     }
 
     const userPlan = userData?.plan || "BASE";
+    const currentUsage = userData?.usage || { tasks_generated: 0, export_count: 0 };
 
     // Get plan limits from plans table
     const { data: planData, error: planError } = await supabase
       .from("plans")
-      .select("tasks_generated_limit, export_limit")
+      .select("task_limit, export_limit")
       .eq("name", userPlan)
       .single();
 
@@ -41,42 +42,14 @@ export const getUsage = async (req: Request, user: AuthenticatedUser) => {
       return createErrorResponse(`Failed to fetch plan limits: ${planError.message}`, 500);
     }
 
-    // Get current usage from usage_tracking table
-    const { data: usageData, error: usageError } = await supabase
-      .from("usage_tracking")
-      .select("tasks_generated, export_count")
-      .eq("user_id", user.id)
-      .eq("month", new Date().toISOString().slice(0, 7)) // YYYY-MM format
-      .single();
-
-    // If no usage data exists, create it with zeros
-    let currentUsage = { tasks_generated: 0, export_count: 0 };
-    
-    if (usageError && usageError.code !== "PGRST116") {
-      return createErrorResponse(`Failed to fetch usage data: ${usageError.message}`, 500);
-    } else if (usageData) {
-      currentUsage = usageData;
-    } else {
-      // Create initial usage record for this month
-      const { error: insertError } = await supabase
-        .from("usage_tracking")
-        .insert({
-          user_id: user.id,
-          month: new Date().toISOString().slice(0, 7),
-          tasks_generated: 0,
-          export_count: 0,
-        });
-
-      if (insertError) {
-        console.warn(`Failed to create usage record: ${insertError.message}`);
-      }
-    }
-
     const response: UsageData = {
       plan: userPlan,
-      usage: currentUsage,
+      usage: {
+        tasks_generated: currentUsage.tasks_generated || 0,
+        export_count: currentUsage.export_count || 0,
+      },
       limits: {
-        tasks_generated: planData.tasks_generated_limit,
+        tasks_generated: planData.task_limit,
         export_limit: planData.export_limit,
       },
     };
