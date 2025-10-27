@@ -8,6 +8,7 @@ export interface CreateTaskRequest {
   priority?: "low" | "medium" | "high";
   due_date?: string;
   tags?: string[];
+  ai_model?: 'openai' | 'claude' | 'gemini' | 'grok';
 }
 
 export const createTask = async (req: Request, user: AuthenticatedUser) => {

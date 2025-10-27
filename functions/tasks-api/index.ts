@@ -1,35 +1,35 @@
 // Setup type definitions for built-in Supabase Runtime APIs
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-import { validateUser, createErrorResponse } from "./utils/authHelpers.ts";
-import { checkRateLimit, getClientIP } from "./utils/rateLimiter.ts";
 import { createTask } from "./handlers/createTask.ts";
-import { getTasks } from "./handlers/getTasks.ts";
-import { getTaskById } from "./handlers/getTaskById.ts";
-import { updateTask } from "./handlers/updateTask.ts";
 import { deleteTask } from "./handlers/deleteTask.ts";
+import { getTaskById } from "./handlers/getTaskById.ts";
+import { getTasks } from "./handlers/getTasks.ts";
 import { getUsage } from "./handlers/getUsage.ts";
-import { 
-  createTemplate, 
-  getTemplates, 
-  getTemplateById, 
-  updateTemplate, 
-  deleteTemplate 
-} from "./handlers/templates.ts";
-import { 
-  shareTask, 
-  unshareTask, 
-  exportTask, 
-  exportTasks 
+import {
+  exportTask,
+  exportTasks,
+  shareTask,
+  unshareTask
 } from "./handlers/taskSharing.ts";
+import {
+  createTemplate,
+  deleteTemplate,
+  getTemplateById,
+  getTemplates,
+  updateTemplate
+} from "./handlers/templates.ts";
+import { updateTask } from "./handlers/updateTask.ts";
+import { createErrorResponse } from "./utils/authHelpers.ts";
+import { checkRateLimit, getClientIP } from "./utils/rateLimiter.ts";
 
 // Helper function to add CORS headers to responses
 const addCorsHeaders = (response: Response): Response => {
   const newHeaders = new Headers(response.headers);
   newHeaders.set("Access-Control-Allow-Origin", "*");
   newHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  newHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  
+  // newHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -78,11 +78,11 @@ Deno.serve(async (req) => {
 
     // Authenticate user for all routes except OPTIONS
     let user;
-    try {
-      user = await validateUser(req);
-    } catch (error) {
-      return addCorsHeaders(createErrorResponse(error.message, 401));
-    }
+    // try {
+    //   user = await validateUser(req);
+    // } catch (error) {
+    //   return addCorsHeaders(createErrorResponse(error.message, 401));
+    // }
 
     // Debug endpoint for JWT testing
     if (pathname === "/debug-auth" && method === "GET") {
