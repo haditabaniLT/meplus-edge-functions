@@ -20,8 +20,9 @@ import {
   updateTemplate
 } from "./handlers/templates.ts";
 import { updateTask } from "./handlers/updateTask.ts";
-import { createErrorResponse } from "./utils/authHelpers.ts";
+import { createErrorResponse, validateUser } from "./utils/authHelpers.ts";
 import { checkRateLimit, getClientIP } from "./utils/rateLimiter.ts";
+import { generateGrokResponse } from "./handlers/ai-models/grok.ts";
 
 // Helper function to add CORS headers to responses
 const addCorsHeaders = (response: Response): Response => {
@@ -78,11 +79,11 @@ Deno.serve(async (req) => {
 
     // Authenticate user for all routes except OPTIONS
     let user;
-    // try {
-    //   user = await validateUser(req);
-    // } catch (error) {
-    //   return addCorsHeaders(createErrorResponse(error.message, 401));
-    // }
+    try {
+      user = await validateUser(req);
+    } catch (error) {
+      return addCorsHeaders(createErrorResponse(error.message, 401));
+    }
 
     // Debug endpoint for JWT testing
     if (pathname === "/debug-auth" && method === "GET") {
@@ -127,6 +128,10 @@ Deno.serve(async (req) => {
 
     if (pathname === "/tasks-api/templates" && method === "GET") {
       return addCorsHeaders(await getTemplates(req, user));
+    }
+
+    if (pathname === "/tasks-api/grok" && method === "POST") {
+      return addCorsHeaders(await generateGrokResponse(req));
     }
 
     // Handle dynamic routes for individual tasks

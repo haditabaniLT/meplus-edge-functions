@@ -3,7 +3,8 @@ import OpenAI from "npm:openai";
 import { generatePrompt } from "./prompts.ts";
 
 const apiKey = "RTtxN75NVloEkp7jktpDAp9qS";
-const apiSecretKey = Deno.env.get("GROK_SECRET");
+// const apiSecretKey = Deno.env.get("GROK_SECRET");
+const apiSecretKey = "WPRVQyQdpKDZUYzFHlpxXAIYm";
 
 const client = new OpenAI({
     apiKey,
@@ -35,7 +36,7 @@ export const generateGrokResponse = async (req: Request) => {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiSecretKey}`,
+            "Authorization": `Bearer WPRVQyQdpKDZUYzFHlpxXAIYm`,
         },
         body: JSON.stringify({
             model: "grok-4-0709",

@@ -1,34 +1,55 @@
 import OpenAI from "npm:openai";
 import { generatePrompt } from "./prompts.ts";
 
-const apiKey = Deno.env.get("OPEN_AI_SECRET_KEY");
+const apiKey = (globalThis as any).Deno?.env?.get("OPEN_AI_SECRET_KEY");
 
-const client = new OpenAI({
+const client = apiKey ? new OpenAI({
     apiKey
-});
+}) : null;
 
-export const generateOpenAiResponse = async (req: Request) => {
+export interface AIResponse {
+    data?: string;
+    success: boolean;
+    error?: string;
+}
+
+export const generateOpenAiResponse = async (userPrompt: string, userInfor?: any, metadata?: any): Promise<AIResponse> => {
+    if (!client || !apiKey) {
+        return {
+            error: "OpenAI API key not configured",
+            success: false,
+        };
+    }
 
     try {
+        const prompt = generatePrompt(userPrompt, userInfor, metadata);
 
-        const body = await req.json();
-        const prompt = generatePrompt(body.prompt);
-
-        const response = await client.responses.create({
+        const response = await client.chat.completions.create({
             model: 'gpt-4o',
-            instructions: 'You are a MePlus agent that helps ',
-            input: prompt,
+            messages: [
+                { role: "system", content: "You are a MePlus agent that helps professionals create actionable tasks." },
+                { role: "user", content: prompt }
+            ],
         });
 
-        return {
-            data: response.output_text,
-            success: true,
+        const content = response.choices[0]?.message?.content;
+
+        if (!content) {
+            return {
+                error: "No content generated from OpenAI",
+                success: false,
+            };
         }
 
-    } catch (error) {
         return {
-            error: error.message,
+            data: content,
+            success: true,
+        };
+
+    } catch (error: any) {
+        return {
+            error: error.message || "OpenAI API error",
             success: false,
-        }
+        };
     }
 };

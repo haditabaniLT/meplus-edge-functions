@@ -1,16 +1,24 @@
 import { GoogleGenAI } from "npm:@google/genai";
 import { generatePrompt } from "./prompts.ts";
 
-const apiKey = Deno.env.get("GEMINI_API_KEY");
+const apiKey = (globalThis as any).Deno?.env?.get("GEMINI_API_KEY");
 
+export interface AIResponse {
+    data?: string;
+    success: boolean;
+    error?: string;
+}
 
-export const generateGeminiResponse = async (req: Request) => {
-
-    const body = await req.json();
-    const prompt = generatePrompt(body.prompt);
+export const generateGeminiResponse = async (userPrompt: string, userInfor?: any, metadata?: any): Promise<AIResponse> => {
+    if (!apiKey) {
+        return {
+            error: "Gemini API key not configured",
+            success: false,
+        };
+    }
 
     try {
-
+        const prompt = generatePrompt(userPrompt, userInfor, metadata);
         const ai = new GoogleGenAI({ apiKey });
 
         const response = await ai.models.generateContent({
@@ -20,18 +28,22 @@ export const generateGeminiResponse = async (req: Request) => {
 
         const data = response.text;
 
+        if (!data) {
+            return {
+                error: "No content generated from Gemini",
+                success: false,
+            };
+        }
+
         return {
             data,
             success: true,
         };
 
-
-    } catch (error) {
-
+    } catch (error: any) {
         return {
-            error: error.message,
+            error: error.message || "Gemini API error",
             success: false,
         };
-
     }
 };

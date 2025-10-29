@@ -1,36 +1,55 @@
 import OpenAI from "npm:openai";
 import { generatePrompt } from "./prompts.ts";
 
-const apiKey = Deno.env.get("CALUDE_SECRET_KEY");
+const apiKey = (globalThis as any).Deno?.env?.get("CLAUDE_SECRET_KEY");
 
-const client = new OpenAI({
-    apiKey,   // Your Claude API key
-    baseURL: "https://api.anthropic.com/v1/",  // Claude API endpoint
-});
+const client = apiKey ? new OpenAI({
+    apiKey,
+    baseURL: "https://api.anthropic.com/v1/",
+}) : null;
 
-export const generateClaudeResponse = async (req: Request) => {
+export interface AIResponse {
+    data?: string;
+    success: boolean;
+    error?: string;
+}
+
+export const generateClaudeResponse = async (userPrompt: string, userInfor?: any, metadata?: any): Promise<AIResponse> => {
+    if (!client || !apiKey) {
+        return {
+            error: "Claude API key not configured",
+            success: false,
+        };
+    }
 
     try {
-
-        const body = await req.json();
-        const prompt = generatePrompt(body.prompt);
+        const prompt = generatePrompt(userPrompt, userInfor, metadata);
 
         const response = await client.chat.completions.create({
             messages: [
                 { role: "user", content: prompt }
             ],
-            model: "claude-sonnet-4-5", // Claude model name
+            model: "claude-sonnet-4-5",
         });
 
-        return {
-            data: response.choices[0].message.content,
-            success: true,
+        const content = response.choices[0]?.message?.content;
+        
+        if (!content) {
+            return {
+                error: "No content generated from Claude",
+                success: false,
+            };
         }
 
-    } catch (error) {
         return {
-            error: error.message,
+            data: content,
+            success: true,
+        };
+
+    } catch (error: any) {
+        return {
+            error: error.message || "Claude API error",
             success: false,
-        }
+        };
     }
 };
