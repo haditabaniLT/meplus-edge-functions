@@ -23,6 +23,8 @@ import { updateTask } from "./handlers/updateTask.ts";
 import { createErrorResponse, validateUser } from "./utils/authHelpers.ts";
 import { checkRateLimit, getClientIP } from "./utils/rateLimiter.ts";
 import { generateGrokResponse } from "./handlers/ai-models/grok.ts";
+import { generateImprovedPromptAPI } from "./handlers/improve-prompt.ts";
+import { generateSuperPrompt } from "./handlers/generateSuperPrompt.ts";
 
 // Helper function to add CORS headers to responses
 const addCorsHeaders = (response: Response): Response => {
@@ -132,6 +134,15 @@ Deno.serve(async (req) => {
 
     if (pathname === "/tasks-api/grok" && method === "POST") {
       return addCorsHeaders(await generateGrokResponse(req));
+    }
+
+    if (pathname === "/tasks-api/improve-prompt" && method === "POST") {
+      return addCorsHeaders(await generateImprovedPromptAPI(req));
+    }
+
+    // Optimize prompt route
+    if (pathname === "/tasks-api/super-prompt" && method === "POST") {
+      return addCorsHeaders(await generateSuperPrompt(req, user));
     }
 
     // Handle dynamic routes for individual tasks

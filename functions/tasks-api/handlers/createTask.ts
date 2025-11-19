@@ -3,6 +3,8 @@ import { createErrorResponse, createSuccessResponse, AuthenticatedUser } from ".
 import { generateOpenAiResponse } from "./ai-models/openAi.ts";
 import { generateClaudeResponse } from "./ai-models/claude.ts";
 import { generateGeminiResponse } from "./ai-models/gemini.ts";
+import { generateImprovedPrompt } from "./improve-prompt.ts";
+import { generateGrokResponse } from "./ai-models/grok.ts";
 
 export interface CreateTaskRequest {
   category: string;
@@ -11,15 +13,24 @@ export interface CreateTaskRequest {
   priority?: "low" | "medium" | "high";
   due_date?: string;
   tags?: string[];
-  prompt?: string;
+  prompt: string;
   ai_model?: 'openai' | 'claude' | 'gemini' | 'grok';
   metadata?: Record<string, any>;
+  optimize_prompt?: boolean;
 }
 
 export const createTask = async (req: Request, user: AuthenticatedUser) => {
   try {
     const body: CreateTaskRequest = await req.json();
     const metadata = body.metadata;
+    const optimize_prompt = body.optimize_prompt;
+    if (optimize_prompt) {
+      const improvedPrompt = await generateImprovedPrompt(body.prompt);
+      if (!improvedPrompt.success) {
+        return createErrorResponse(improvedPrompt.error, 500);
+      }
+      body.prompt = improvedPrompt.data;
+    }
 
     const supabase = createSupabaseClient();
     // Check user plan limits before creating task
@@ -60,7 +71,9 @@ export const createTask = async (req: Request, user: AuthenticatedUser) => {
           break;
         case 'grok':
           // Grok is not implemented yet
-          return createErrorResponse("Grok AI model is not yet supported");
+          // return createErrorResponse("Grok AI model is not yet supported");
+          aiResponse = await generateGrokResponse(body.prompt, userData, metadata);
+          break;
         default:
           return createErrorResponse(`Unsupported AI model: ${body.ai_model}`);
       }

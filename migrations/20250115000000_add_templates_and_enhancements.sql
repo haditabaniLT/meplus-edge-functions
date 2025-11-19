@@ -16,9 +16,17 @@ CREATE TABLE IF NOT EXISTS "public"."templates" (
     CONSTRAINT "templates_pkey" PRIMARY KEY ("id")
 );
 
--- Add foreign key constraint
-ALTER TABLE ONLY "public"."templates"
-    ADD CONSTRAINT "templates_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+-- Add foreign key constraint (if it doesn't exist)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'templates_user_id_fkey'
+    ) THEN
+        ALTER TABLE ONLY "public"."templates"
+            ADD CONSTRAINT "templates_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+    END IF;
+END $$;
 
 -- Add indexes for better performance
 CREATE INDEX "idx_templates_user_id" ON "public"."templates" USING "btree" ("user_id");

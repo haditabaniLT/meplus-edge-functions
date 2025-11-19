@@ -2,9 +2,9 @@ import { createSuccessResponse } from "../../utils/authHelpers.ts";
 import OpenAI from "npm:openai";
 import { generatePrompt } from "./prompts.ts";
 
-const apiKey = "RTtxN75NVloEkp7jktpDAp9qS";
+const apiKey = Deno.env.get("GROK_API_KEY")
 // const apiSecretKey = Deno.env.get("GROK_SECRET");
-const apiSecretKey = "WPRVQyQdpKDZUYzFHlpxXAIYm";
+const apiSecretKey = Deno.env.get("GROK_SECRET");
 
 const client = new OpenAI({
     apiKey,
@@ -12,10 +12,9 @@ const client = new OpenAI({
 
 });
 
-export const generateGrokResponse = async (req: Request) => {
+export const generateGrokResponse = async (userPrompt: string, userInfor?: any, metadata?: any): Promise<any> => {
 
-    const body = await req.json();
-    const prompt = generatePrompt(body.prompt);
+    const prompt = generatePrompt(userPrompt);
 
     // const response = await client.chat.completions.create({
     //     model: "grok-4-0709",
@@ -36,7 +35,7 @@ export const generateGrokResponse = async (req: Request) => {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer WPRVQyQdpKDZUYzFHlpxXAIYm`,
+            "Authorization": `Bearer apiKey`,
         },
         body: JSON.stringify({
             model: "grok-4-0709",
