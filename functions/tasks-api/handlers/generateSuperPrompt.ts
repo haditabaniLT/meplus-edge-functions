@@ -156,3 +156,207 @@ export const generateSuperPrompt = async (req: Request, user: AuthenticatedUser)
   }
 };
 
+// Get super prompts
+export const getSuperPrompts = async (req: Request, user: AuthenticatedUser) => {
+  try {
+    const url = new URL(req.url);
+    const aiModel = url.searchParams.get("ai_model");
+    const search = url.searchParams.get("search");
+    const fromDate = url.searchParams.get("fromDate");
+    const toDate = url.searchParams.get("toDate");
+    const sortBy = url.searchParams.get("sortBy") || "created_at";
+    const sortOrder = url.searchParams.get("sortOrder") || "desc";
+    const limit = url.searchParams.get("limit");
+    const offset = url.searchParams.get("offset");
+
+    const supabase = createSupabaseClient();
+    
+    // Build base query - only user's own super prompts
+    let query = supabase
+      .from("super_prompts")
+      .select("*", { count: 'exact' })
+      .eq("user_id", user.id);
+
+    // Apply filters
+    if (aiModel) {
+      query = query.eq("ai_model", aiModel);
+    }
+
+    // Apply date range filters
+    if (fromDate) {
+      query = query.gte("created_at", fromDate);
+    }
+
+    if (toDate) {
+      query = query.lte("created_at", toDate);
+    }
+
+    // Apply search filter (in generated_prompt)
+    if (search) {
+      query = query.ilike("generated_prompt", `%${search}%`);
+    }
+
+    // Apply sorting
+    const ascending = sortOrder.toLowerCase() === "asc";
+    query = query.order(sortBy, { ascending });
+
+    // Apply pagination
+    if (limit) {
+      const limitNum = parseInt(limit);
+      if (limitNum > 0) {
+        query = query.limit(limitNum);
+      }
+    }
+
+    if (offset) {
+      const offsetNum = parseInt(offset);
+      const limitNum = limit ? parseInt(limit) : 10;
+      if (offsetNum >= 0) {
+        query = query.range(offsetNum, offsetNum + limitNum - 1);
+      }
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      return createErrorResponse(`Failed to fetch super prompts: ${error.message}`, 500);
+    }
+
+    // Parse questions JSON for each prompt
+    const parsedData = (data || []).map((prompt: any) => ({
+      ...prompt,
+      questions: prompt.questions ? JSON.parse(prompt.questions) : null,
+    }));
+
+    // Calculate pagination values
+    const limitNum = limit ? parseInt(limit) : 10;
+    const offsetNum = offset ? parseInt(offset) : 0;
+
+    // Return paginated result with meta
+    return createSuccessResponse({
+      data: parsedData,
+      count: count || 0,
+      pagination: {
+        limit: limitNum,
+        offset: offsetNum,
+        hasMore: offsetNum + limitNum < (count || 0)
+      }
+    }, "Super prompts fetched successfully");
+  } catch (error: any) {
+    return createErrorResponse(`Invalid request: ${error.message}`, 400);
+  }
+};
+
+// Update super prompt
+export interface UpdateSuperPromptRequest {
+  generated_prompt?: string;
+  ai_model?: 'openai' | 'claude' | 'gemini' | 'grok';
+  questions?: {
+    [key: string]: string;
+  };
+}
+
+export const updateSuperPrompt = async (req: Request, user: AuthenticatedUser, promptId: string) => {
+  try {
+    const body: UpdateSuperPromptRequest = await req.json();
+    
+    if (Object.keys(body).length === 0) {
+      return createErrorResponse("No fields to update", 400);
+    }
+
+    const supabase = createSupabaseClient();
+    
+    // First check if prompt exists and belongs to user
+    const { data: existingPrompt, error: fetchError } = await supabase
+      .from("super_prompts")
+      .select("id")
+      .eq("id", promptId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (fetchError) {
+      if (fetchError.code === "PGRST116") {
+        return createErrorResponse("Super prompt not found", 404);
+      }
+      return createErrorResponse(`Failed to fetch super prompt: ${fetchError.message}`, 500);
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (body.generated_prompt !== undefined) {
+      updateData.generated_prompt = body.generated_prompt;
+    }
+
+    if (body.ai_model !== undefined) {
+      updateData.ai_model = body.ai_model;
+    }
+
+    if (body.questions !== undefined) {
+      updateData.questions = JSON.stringify(body.questions);
+    }
+
+    // Update the super prompt
+    const { data, error } = await supabase
+      .from("super_prompts")
+      .update(updateData)
+      .eq("id", promptId)
+      .eq("user_id", user.id)
+      .select()
+      .single();
+
+    if (error) {
+      return createErrorResponse(`Failed to update super prompt: ${error.message}`, 500);
+    }
+
+    // Parse questions JSON for response
+    const parsedData = {
+      ...data,
+      questions: data.questions ? JSON.parse(data.questions) : null,
+    };
+
+    return createSuccessResponse(parsedData, "Super prompt updated successfully");
+  } catch (error: any) {
+    return createErrorResponse(`Invalid request: ${error.message}`, 400);
+  }
+};
+
+// Delete super prompt
+export const deleteSuperPrompt = async (req: Request, user: AuthenticatedUser, promptId: string) => {
+  try {
+    const supabase = createSupabaseClient();
+    
+    // First check if prompt exists and belongs to user
+    const { data: existingPrompt, error: fetchError } = await supabase
+      .from("super_prompts")
+      .select("id")
+      .eq("id", promptId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (fetchError) {
+      if (fetchError.code === "PGRST116") {
+        return createErrorResponse("Super prompt not found", 404);
+      }
+      return createErrorResponse(`Failed to fetch super prompt: ${fetchError.message}`, 500);
+    }
+
+    // Delete the super prompt
+    const { error } = await supabase
+      .from("super_prompts")
+      .delete()
+      .eq("id", promptId)
+      .eq("user_id", user.id);
+
+    if (error) {
+      return createErrorResponse(`Failed to delete super prompt: ${error.message}`, 500);
+    }
+
+    return createSuccessResponse({ id: promptId }, "Super prompt deleted successfully");
+  } catch (error: any) {
+    return createErrorResponse(`Invalid request: ${error.message}`, 400);
+  }
+};
+
